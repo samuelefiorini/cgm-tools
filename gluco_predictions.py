@@ -22,7 +22,7 @@ get_ipython().magic(u'matplotlib inline')
 # In[2]:
 
 # load data set from pickle file
-dfs_full = pkl.load(open('../dfs_py3.pkl', 'rb'))
+dfs_full = pkl.load(open('../../dfs_py3.pkl', 'rb'))
 
 
 # ## 1.1 Define utility functions
@@ -154,10 +154,10 @@ autocorr_plot(gluco, lags=180)
 warnings.filterwarnings('ignore')
 
 
-# In[16]:
+# In[7]:
 
 def moving_window_ARIMA(df, w_size=30, ph=18, p=2, d=1, q=1,
-                        start_params=None, open_loop=False, verbose=False):
+                        start_params=None, verbose=False):
     """Fit a moving-window ARMA model with fixed window size.
     
     This function tries to fit a moving-window AIRMA model on input time-series.
@@ -177,10 +177,9 @@ def moving_window_ARIMA(df, w_size=30, ph=18, p=2, d=1, q=1,
     Returns
     -------------------
     errs : dictionary, errors at 30/60/90 mins ('err_18', 'err_12', 'err_6':)
-    open_loop : bool, when True the size of the forecast is n_samples - w_size - ph,
-                else 
     forecast : dictionary, time-series prediction ['ts'], with std_dev ['sigma']
-               and confidence interval ['conf_int'].
+               and confidence interval ['conf_int']. The output has the same length
+               of the input, but the first w_size elements are set to 0.
     """
     # Argument check
     if w_size < ph:        
@@ -190,13 +189,13 @@ def moving_window_ARIMA(df, w_size=30, ph=18, p=2, d=1, q=1,
 
     # Absolute prediction error at 30/60/90 minutes
     errs = {'err_18': [], 'err_12': [], 'err_6': []}
-    forecast = {'ts': [], 'sigma': [], 'conf_int': []} # 1 step-ahead predictions
+    forecast = {'ts': [0] * w_size, 'sigma': [], 'conf_int': []} # 1 step-ahead predictions
 
     # Move the window across the signal
-    for w_start in range(n_samples - (w_size + ph)):
+    for w_start in range(n_samples - (w_size + ph - 1)):
         w_end = w_start + w_size
         y = df.iloc[w_start:w_end] # beware: y is a time-indexed pandas DataFrame
-
+        
         # Fit the model and forecast the next ph steps
         try:
             model = sm.tsa.ARIMA(y, (p, d, q)).fit(trend='nc',
@@ -205,41 +204,34 @@ def moving_window_ARIMA(df, w_size=30, ph=18, p=2, d=1, q=1,
             y_pred, std_err, conf_int = model.forecast(ph)
             
         except np.linalg.linalg.LinAlgError as e:
-            print("CRITICAL: {}".format(e))
+            warnings.warn("CRITICAL: %s" % e)
             return np.nan, np.nan
         
-        # Check if the real acquisistions are over
         if (w_end + ph) < n_samples:
-            
             # Save the 1-step ahead prediction (for plotting reasons)
             forecast['ts'].append(y_pred[0])
             forecast['sigma'].append(std_err[0])
             forecast['conf_int'].append(conf_int[0])
-            
+
             # Evaluate the errors
             y_future_real = df.iloc[w_end:w_end + ph].values.ravel()
             abs_pred_err = np.abs(y_pred - y_future_real)
-            
+
             # Save errors
             errs['err_18'].append(abs_pred_err[17])
             errs['err_12'].append(abs_pred_err[11])
             errs['err_6'].append(abs_pred_err[5])
-            
+
             if (w_start % 200) == 0 and verbose:
                 print("[:{}]\nErrors: 30' = {:2.3f}\t|\t60' = "
                       "{:2.3f}\t|\t90' = {:2.3f}".format(w_end, errs['err_6'][-1],
                                                          errs['err_12'][-1],
                                                          errs['err_18'][-1]))
                 print(model.params)
-
         else:
-            print('cane!!!!!!!!!!!!')
-            if open_loop:
-                # Save the last (open-loop) predictions
-                forecast['ts'].extend(y_pred.tolist())
-                forecast['sigma'].append(std_err)
-                forecast['conf_int'].append(conf_int)
-            else: break   
+            forecast['ts'].extend(y_pred)
+            forecast['sigma'].extend(std_err)
+            forecast['conf_int'].extend([_ for _ in conf_int])
 
         # Update the starting parameters (warm restart)
         start_params = model.params.copy()
@@ -247,41 +239,13 @@ def moving_window_ARIMA(df, w_size=30, ph=18, p=2, d=1, q=1,
     # Return numpy.array
     forecast['ts'] = np.array(forecast['ts'])
     forecast['sigma'] = np.array(forecast['sigma'])
-        
+    
+    print(w_start)
+    print(w_end)
     return errs, forecast
 
 
-# In[ ]:
-
-# select patient
-idx = list(dfs.keys())[10]
-df = gluco_extract(dfs[idx], return_df=True)
-
-df = df.iloc[:1000]
-
-p, d, q = 2, 1, 1
-
-# Window-size and prediction horizon
-w_size = 30
-ph = 18
-
-# perform moving-window arma
-errs, forecast = moving_window_ARIMA(df, w_size=w_size, ph=ph,
-                                     p=p, d=d, q=q,
-                                     start_params=None, verbose=True)
-
-
-# In[17]:
-
-print(len(forecast['ts']))
-
-
-# In[20]:
-
-1000 - 30 - 18
-
-
-# In[10]:
+# In[8]:
 
 def grid_search_ARIMA(df, burn_in=300, n_splits=15, p_bounds=(2, 8), d_bounds=(1, 2),
                       q_bounds=(2, 4), ic_score='AIC', return_final_index=False, verbose=False):
@@ -412,19 +376,17 @@ def grid_search_ARIMA(df, burn_in=300, n_splits=15, p_bounds=(2, 8), d_bounds=(1
         return (p_opt, d_opt, q_opt)
 
 
-# In[13]:
+# In[11]:
 
 # select patient
-idx = list(dfs.keys())[100]
+idx = list(dfs.keys())[11]
 df = gluco_extract(dfs[idx], return_df=True)
 
 # learn the best order
-# opt_order, final_index = grid_search_ARIMA(df, burn_in=144, n_splits=8, p_bounds=(1, 4), d_bounds=(1, 2),
-#                                            q_bounds=(1, 4), ic_score='AIC', return_final_index=True, verbose=True)
+opt_order, final_index = grid_search_ARIMA(df, burn_in=144, n_splits=8, p_bounds=(1, 4), d_bounds=(1, 2),
+                                           q_bounds=(1, 4), ic_score='AIC', return_final_index=True, verbose=True)
 # opt_order, final_index = grid_search_ARIMA(df, burn_in=300, n_splits=15, p_bounds=(1, 4), d_bounds=(1, 2),
 #                                            q_bounds=(1, 4), ic_score='AIC', return_final_index=True, verbose=True)
-
-opt_order = (2, 2, 1)
 
 print(opt_order)
 p, d, q = opt_order
@@ -439,11 +401,11 @@ errs, forecast = moving_window_ARIMA(df, w_size=w_size, ph=ph,
                                      start_params=None, verbose=True)
 
 
-# In[ ]:
+# In[13]:
 
 # plot results
-gluco_plot(df.index[w_size:-ph], df.as_matrix()[w_size:-ph], title='Patient '+str(k))
-plt.plot(df.index[w_size:-ph], forecast['ts'], linestyle='dashed', label='forecast')
+gluco_plot(df.index, df.as_matrix(), title='Patient '+str(k))
+plt.plot(df.index, forecast['ts'], linestyle='dashed', label='forecast')
 plt.legend(bbox_to_anchor=(1.2, 1.0))
 MAE_6 = np.mean(errs['err_6'])
 MAE_12 = np.mean(errs['err_12'])
@@ -455,9 +417,9 @@ print("MAE (30') = {:2.3f}\t|\tMAE (60') = {:2.3f}\t|\tMAE (90') = {:2.3f}".form
 print("RMSE (30') = {:2.3f}\t|\tRMSE (60') = {:2.3f}\t|\tRMSE (90') = {:2.3f}".format(RMSE_6, RMSE_12, RMSE_18))
 
 
-# In[ ]:
+# In[14]:
 
-residuals = df.as_matrix()[w_size:-ph].ravel() - forecast['ts']
+residuals = df.as_matrix()[w_size:-ph].ravel() - forecast['ts'][w_size:-ph]
 fig = plt.figure(figsize=(12, 4))
 plt.plot(df.index[w_size:-ph], residuals)
 plt.title('Durbin-Watson: {:.3f}'.format(sm.stats.durbin_watson(residuals)));
