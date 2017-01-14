@@ -5,7 +5,7 @@
 # GPL-3.0 License
 ######################################################################
 
-
+import matplotlib; matplotlib.use('agg')
 from seaborn import plt
 import statsmodels.api as sm
 

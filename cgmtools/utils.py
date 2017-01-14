@@ -5,9 +5,40 @@
 # GPL-3.0 License
 ######################################################################
 
-
 import datetime
 import pandas as pd
+
+
+def filter_patients(dfs, threshold):
+    """Filter patients with less than `THRESHOLD` days of CGM acquisition.
+
+    Parameters
+    -------------------
+    dfs : dictionary of pandas.DataFrame, obtained from data_wrangler.py
+    threshold : datetime.timedelta, CGM monitoring inclusion criterion
+
+    Returns
+    -------------------
+    dfs_out : dictionary of pandas.DataFrame, containing only the patients that
+              match the inclusion criterion
+    """
+    # Init list of patients that satisfy inclusion criterion
+    ok_keys = []
+
+    # Iterate on the patients
+    for k in dfs.keys():
+        df = dfs[k]
+        time, gluco = gluco_extract(df)
+        try:  # TODO: improve here
+            delta = time[-1] - time[0]
+            if delta > threshold: ok_keys.append(k)
+        except:
+            pass
+
+    # Filter short time-series
+    dfs_out = {k: dfs[k] for k in ok_keys}
+
+    return dfs_out
 
 
 def gluco_extract(df, return_df=False):

@@ -12,10 +12,12 @@ from sklearn.metrics import mean_squared_error
 import statsmodels.api as sm
 import warnings
 
+__all__ = ['moving_window', 'grid_search']
 
-def moving_window_ARIMA(df, w_size=30, ph=18, p=2, d=1, q=1,
-                        start_params=None, verbose=False):
-    """Fit a moving-window ARMA model with fixed window size.
+
+def moving_window(df, w_size=30, ph=18, p=2, d=1, q=1,
+                  start_params=None, verbose=False):
+    """Fit a moving-window ARIMA model with fixed window size.
 
     This function tries to fit a moving-window AIRMA model on input
     time-series. In case of failure, due to numpy.linalg.linalg.LinAlgError,
@@ -62,14 +64,20 @@ def moving_window_ARIMA(df, w_size=30, ph=18, p=2, d=1, q=1,
 
         # Fit the model and forecast the next ph steps
         try:
-            model = sm.tsa.ARIMA(y, (p, d, q)).fit(trend='nc',
+            model = sm.tsa.ARIMA(y, (p, d, q)).fit(trend='nc', #method='css',
                                                    start_params=start_params,
                                                    solver='cg', maxiter=500,
                                                    disp=0)
             y_pred, std_err, conf_int = model.forecast(ph)
 
+            # Update the starting parameters for the next iter (warm restart)
+            start_params = model.params.copy()
         except np.linalg.linalg.LinAlgError as e:
-            warnings.warn("CRITICAL: %s" % e)
+            # warnings.warn("CRITICAL: %s" % e)
+            print("*************************************")
+            print("CRITICAL: %s" % e)
+            print(start_params)
+            print("*************************************")
             return np.nan, np.nan
 
         if (w_end + ph) < n_samples:
@@ -99,9 +107,6 @@ def moving_window_ARIMA(df, w_size=30, ph=18, p=2, d=1, q=1,
             forecast['sigma'].extend(std_err)
             forecast['conf_int'].extend([_ for _ in conf_int])
 
-        # Update the starting parameters (warm restart)
-        start_params = model.params.copy()
-
     # Return numpy.array
     forecast['ts'] = np.array(forecast['ts'])
     forecast['sigma'] = np.array(forecast['sigma'])
@@ -111,9 +116,9 @@ def moving_window_ARIMA(df, w_size=30, ph=18, p=2, d=1, q=1,
     return errs, forecast
 
 
-def grid_search_ARIMA(df, burn_in=300, n_splits=15, p_bounds=(2, 8),
-                      d_bounds=(1, 2), q_bounds=(2, 4), ic_score='AIC',
-                      return_final_index=False, verbose=False):
+def grid_search(df, burn_in=300, n_splits=15, p_bounds=(2, 8),
+                d_bounds=(1, 2), q_bounds=(2, 4), ic_score='AIC',
+                return_final_index=False, verbose=False):
     """Find the best ARIMA parameters via grid search cross-validation.
 
     This function perform a grid search of the optimal (p, d, q)
@@ -209,7 +214,7 @@ def grid_search_ARIMA(df, burn_in=300, n_splits=15, p_bounds=(2, 8),
 
                 # Fit the model on the training set and forecast the
                 # validation set
-                model = sm.tsa.ARIMA(y_tr, order).fit(trend='nc',
+                model = sm.tsa.ARIMA(y_tr, order).fit(trend='nc', #method='css',
                                                       start_params=start_params,
                                                       solver='cg', maxiter=500,
                                                       disp=0)
@@ -220,7 +225,7 @@ def grid_search_ARIMA(df, burn_in=300, n_splits=15, p_bounds=(2, 8),
                 _current_vld_err = mean_squared_error(y_pred, y_vld)
 
                 # Save the specified information criteria
-                _current_ic_score = model.aic if ic_score == 'AIC' else model.bic
+                _current_ic_score = model.aic if ic_score is 'AIC' else model.bic
             except Exception as e:
                 if verbose: warnings.warn('statsmodels.tsa.arima_model.ARIMA '
                                           'raised:\n%s' % e)
