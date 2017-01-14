@@ -12,34 +12,12 @@ saved as pickle files
 # GPL-3.0 License
 ######################################################################
 
-
-# from __future__ import print_function
 import argparse
 import numpy as np
 import os
 import pandas as pd
-import sys
 import pickle as pkl
-
-
-def eprint(*message, **kwargs):
-    """Print on the standard error."""
-    print(*message, file=sys.stderr, **kwargs)
-
-
-def parsing():
-    """Parse input arguments."""
-    parser = argparse.ArgumentParser(description='Data wrangling utility for '
-                                                 'Medtronic Diabetes iPro '
-                                                 'Data Export File (v1.0.1)')
-    parser.add_argument("data_folder", help='The folder that contains all'
-                                            'the exported csv files')
-    parser.add_argument('-o', '--output', metavar='output', action='store',
-                        help='output pickle filename containing a dictionary'
-                        'with filename as key and its content as value',
-                        default='dfs')
-    args = parser.parse_args()
-    return args
+import sys
 
 
 def Excel2DF(root, csvfiles, show_failed=False):
@@ -71,7 +49,7 @@ def main(args):
     files = os.listdir(args.data_folder)
     csvfiles = list(filter(lambda x: x.endswith('.csv'), files))
     if len(csvfiles) == 0:
-        eprint("No .csv files in {}".format(args.data_folder))
+        raise Exception("No .csv files in {}".format(args.data_folder))
         sys.exit(-1)
 
     dfs = Excel2DF(root=args.data_folder, csvfiles=csvfiles, show_failed=True)
@@ -81,8 +59,23 @@ def main(args):
         with open(args.output+'.pkl', 'wb') as f:
             pkl.dump(dfs, f)
 
+######################################################################
 
-# ----------------------------  RUN MAIN ---------------------------- #
+
+def parsing():
+    """Parse input arguments."""
+    parser = argparse.ArgumentParser(description='Data wrangling utility for '
+                                                 'Medtronic Diabetes iPro '
+                                                 'Data Export File (v1.0.1)')
+    parser.add_argument("data_folder", help='The folder that contains all'
+                                            'the exported csv files')
+    parser.add_argument('-o', '--output', metavar='output', action='store',
+                        help='output pickle filename containing a dictionary'
+                        'with filename as key and its content as value',
+                        default='dfs')
+    args = parser.parse_args()
+    return args
+
 if __name__ == '__main__':
     ARGS = parsing()
     main(ARGS)
