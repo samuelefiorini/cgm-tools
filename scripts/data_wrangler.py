@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
-"""Data wrangler.
+"""[cgm-tools] Data wrangler.
 
 data_wrangler.py is a Python scripts that converts
 Medtronic Diabetes iPro Data Export File (v1.0.1)
-to pandas DataFrame objects.
+to pandas DataFrame objects that can optionally be
+saved as pickle files
 """
+######################################################################
+# Copyright (C) 2017 Samuele Fiorini, Chiara Martini, Annalisa Barla
+#
+# GPL-3.0 License
+######################################################################
+
 
 # from __future__ import print_function
 import argparse
