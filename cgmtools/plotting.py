@@ -35,7 +35,7 @@ def cgm(df, gluco_fit=None, hypo=70, hyper=126,
     plt.ylim([10, 410])
     plt.plot_date(df.index, df.as_matrix(), '-', label='real CGM')
     if gluco_fit is not None:
-        plt.plot(df.index, gluco_fit, '-', label='predicted CGM')
+        plt.plot(df.index, gluco_fit, '--', label='predicted CGM')
     plt.title(title)
     plt.ylabel('mg/dL')
     plt.xticks(rotation='vertical')
