@@ -46,8 +46,13 @@ def main(args):
     w_size = 36  # Window-size
     ph = 18  # prediction horizon
 
-    for idx in dfs.keys():
-        print("Evaluating patient: {} ...".format(idx))
+    # Get patients list
+    patients = list(dfs.keys())
+
+    for count, idx in enumerate(patients):
+        print("Evaluating patient: {} ({}/{}) ...".format(idx,
+                                                          count,
+                                                          len(patients)))
         df = utils.gluco_extract(dfs[idx], return_df=True)
 
         # Learn the best order via cv
@@ -74,7 +79,9 @@ def main(args):
                 break  # greedy beahior: take the first that works
             except Exception as e:
                 print('ARIMA({}, {}, {}) failure'.format(p, d, q))
-                print('arima.moving_window raised:\n{}'.format(e))
+                print('arima.moving_window raised the following exception')
+                print(e)
+
 
         # Save results reports
         error_summary = utils.forecast_report(errs)
