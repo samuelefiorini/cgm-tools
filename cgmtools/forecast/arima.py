@@ -21,7 +21,7 @@ def moving_window(df, w_size=30, ph=18, p=2, d=1, q=1,
 
     This function tries to fit a moving-window AIRMA model on input
     time-series. In case of failure, due to numpy.linalg.linalg.LinAlgError,
-    the function returns NaNs.
+    the function prints a warning before raising the same exception.
 
     Parameters
     -------------------
@@ -59,12 +59,12 @@ def moving_window(df, w_size=30, ph=18, p=2, d=1, q=1,
     # Move the window across the signal
     for w_start in range(n_samples - (w_size + ph - 1)):
         w_end = w_start + w_size
-        y = df.iloc[w_start:w_end]
-        # BEWARE: y is a time-indexed pandas DataFrame
+        y = df.iloc[w_start:w_end]  # BEWARE!
+        # y is a time-indexed pandas DataFrame
 
         # Fit the model and forecast the next ph steps
         try:
-            model = sm.tsa.ARIMA(y, (p, d, q)).fit(trend='nc', #method='css',
+            model = sm.tsa.ARIMA(y, (p, d, q)).fit(trend='nc',
                                                    start_params=start_params,
                                                    solver='cg', maxiter=500,
                                                    disp=0)
@@ -73,12 +73,9 @@ def moving_window(df, w_size=30, ph=18, p=2, d=1, q=1,
             # Update the starting parameters for the next iter (warm restart)
             start_params = model.params.copy()
         except np.linalg.linalg.LinAlgError as e:
-            # warnings.warn("CRITICAL: %s" % e)
-            print("*************************************")
-            print("CRITICAL: %s" % e)
-            print(start_params)
-            print("*************************************")
-            return np.nan, np.nan
+            warnings.warn("ARIMA FAILED: %s" % e)
+            warnings.warn(start_params)
+            raise np.linalg.linalg.LinAlgError
 
         if (w_end + ph) < n_samples:
             # Save the 1-step ahead prediction (for plotting reasons)
@@ -118,12 +115,20 @@ def moving_window(df, w_size=30, ph=18, p=2, d=1, q=1,
 
 def grid_search(df, burn_in=300, n_splits=15, p_bounds=(2, 8),
                 d_bounds=(1, 2), q_bounds=(2, 4), ic_score='AIC',
-                return_final_index=False, verbose=False):
+                return_order_rank=False, return_final_index=False,
+                verbose=False):
     """Find the best ARIMA parameters via grid search cross-validation.
 
     This function perform a grid search of the optimal (p, d, q)
     parameters of the ARIMAsklearn.model_selection.TimeSeriesSplit
-    on input data. The index to optimize can be either AIC or BIC.
+    on input data. The best parameter is obtained optimizing a composed
+    index that presents terms:
+
+                    `CV ERROR` + `INFORMATION CRITERIA`
+
+    the `CV ERROR` is a cross-validation out-of-samples mean squared error
+    obtained by the model on the validation set. The `INFORMATION CRITERIA`
+    can be either AIC or BIC, according to the ic_score input argument.
 
     Parameters
     -------------------
@@ -140,6 +145,8 @@ def grid_search(df, burn_in=300, n_splits=15, p_bounds=(2, 8),
     q_bounds : tuple, the MA parameters range organized as (min_q, max_q)
                (default = (2, 4))
     ic_score : str, this can be either 'AIC' (default) or 'BIC'
+    return_order_rank : bool, return the orders ranked from best to worst
+                        according to the composite index
     return_final_index : bool, return the final index as second argument
                          (default=False)
     verbose : bool, print debug messages (default=False)
@@ -148,6 +155,8 @@ def grid_search(df, burn_in=300, n_splits=15, p_bounds=(2, 8),
     -------------------
     optimal_order : tuple, the obtained optimal order (p, d, q) for the ARIMA
                     model
+    order_rank : list of tuples, the grid-search order ranked from best to
+                 worst according to the composite index
     final_index : array_like, the index obtained by the sum of the
                   cross-validation out-of-samples (validation) prediction with
                   the chosen information criteria
@@ -214,7 +223,7 @@ def grid_search(df, burn_in=300, n_splits=15, p_bounds=(2, 8),
 
                 # Fit the model on the training set and forecast the
                 # validation set
-                model = sm.tsa.ARIMA(y_tr, order).fit(trend='nc', #method='css',
+                model = sm.tsa.ARIMA(y_tr, order).fit(trend='nc',
                                                       start_params=start_params,
                                                       solver='cg', maxiter=500,
                                                       disp=0)
@@ -248,14 +257,51 @@ def grid_search(df, burn_in=300, n_splits=15, p_bounds=(2, 8),
 
     # Get the optimal orders from the score that we want to optimize
     final_index = mean_ic_score + mean_vld_error
-    _ip, _id, _iq = np.where(final_index == np.nanmin(final_index))
 
-    # Re-convert the indexes of the tensor in one of the input ARIMA order
-    p_opt = _ip[0] + min_p
-    d_opt = _id[0] + min_d
-    q_opt = _iq[0] + min_q
+    if not return_order_rank:  # don't bother to rank the orders
+        _ip, _id, _iq = np.argwhere(final_index == np.nanmin(final_index))[0]
 
+        # Re-convert the indexes of the tensor in one of the input ARIMA order
+        p_opt = _ip + min_p
+        d_opt = _id + min_d
+        q_opt = _iq + min_q
+    else:  # rank the orders
+        order_rank = _rank_orders(final_index, min_p, min_d, min_q)
+        p_opt, d_opt, q_opt = order_rank[0]
+
+    # Multiple returns
+    ret = [(p_opt, d_opt, q_opt)]
+
+    if return_order_rank:
+        ret.append(order_rank)
     if return_final_index:
-        return (p_opt, d_opt, q_opt), final_index
-    else:
-        return (p_opt, d_opt, q_opt)
+        ret.append(final_index)
+    return ret
+
+
+def _rank_orders(final_index, min_p, min_d, min_q):
+    """Rank ARIMA orders according to the input composite index.
+
+    Parameters
+    -------------------
+    final_index : array of float, of size (#p, #d, #q)
+    min_p : number, lower p bound
+    min_d : number, lower d bound
+    min_q : number, lower q bound
+
+    Returns
+    -------------------
+    order_rank : list of tuples, the grid-search order ranked from best to
+                 worst according to the composite index
+    """
+    order_rank = []
+
+    # Iterate on the elements of the 3D array
+    for index in range(final_index.size):
+        _min = np.nanmin(final_index)  # NaN insensitive minimum value
+        _min_idx = np.argwhere(final_index == _min)[0]
+        i, j, k = _min_idx
+        final_index[i, j, k] = np.nan  # set the min to NaN
+        order_rank.append((i + min_p, j + min_d, k + min_q))
+
+    return order_rank
