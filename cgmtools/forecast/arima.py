@@ -74,7 +74,6 @@ def moving_window(df, w_size=30, ph=18, p=2, d=1, q=1,
             start_params = model.params.copy()
         except np.linalg.linalg.LinAlgError as e:
             warnings.warn("ARIMA FAILED: %s" % e)
-            warnings.warn(start_params)
             raise np.linalg.linalg.LinAlgError
 
         if (w_end + ph) < n_samples:
