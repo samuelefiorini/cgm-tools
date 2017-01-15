@@ -39,54 +39,54 @@ def main(args):
 
     # ----------------- TEST ----------------------------- #
     # Experiment parameters
-    # burn_in = 300  # burn-in samples used to learn the best order via cv
-    # n_splits = 15
-    burn_in = 144  # burn-in samples used to learn the best order via cv
-    n_splits = 8
-    w_size = 30  # Window-size
+    burn_in = 300  # burn-in samples used to learn the best order via cv
+    n_splits = 15
+    # burn_in = 144  # burn-in samples used to learn the best order via cv
+    # n_splits = 8
+    w_size = 36  # Window-size
     ph = 18  # prediction horizon
 
-    #for idx in dfs.keys():
-    idx = 'Horiguchi, Yoko.csv'
-    df = utils.gluco_extract(dfs[idx], return_df=True)
+    for idx in dfs.keys():
+        print("Evaluating patient: {} ...".format(idx))
+        df = utils.gluco_extract(dfs[idx], return_df=True)
 
-    # Learn the best order via cv
-    out = arima.grid_search(df, burn_in=burn_in, n_splits=n_splits,
-                            p_bounds=(1, 4), d_bounds=(1, 2), q_bounds=(1, 4),
-                            ic_score='AIC', return_order_rank=True,
-                            return_final_index=True, verbose=True)
-    opt_order, order_rank, final_index = out
+        # Learn the best order via cv
+        out = arima.grid_search(df, burn_in=burn_in, n_splits=n_splits,
+                                p_bounds=(1, 4), d_bounds=(1, 2), q_bounds=(1, 4),
+                                ic_score='AIC', return_order_rank=True,
+                                return_final_index=True, verbose=False)
+        opt_order, order_rank, final_index = out
 
-    print("Order rank:\n{}".format(order_rank))
+        print("Order rank:\n{}".format(order_rank))
 
-    df = df.iloc[burn_in:]  # don't mix-up training/test
+        df = df.iloc[burn_in:]  # don't mix-up training/test
 
-    # Try the order from best to worst
-    for order in order_rank:
-        p, d, q = order
-        try:  # perform moving-window arma
-            print('Using ARIMA({}, {}, {}) ...'.format(p, d, q))
-            errs, forecast = arima.moving_window(df, w_size=w_size, ph=ph,
-                                                 p=p, d=d, q=q,
-                                                 start_params=None,
-                                                 verbose=True)
-            print('ARIMA({}, {}, {}) success'.format(p, d, q))
-            break  # greedy beahior: take the first that works
-        except Exception as e:
-            print('ARIMA({}, {}, {}) failure'.format(p, d, q))
-            print('arima.moving_window raised:\n{}'.format(e))
+        # Try the order from best to worst
+        for order in order_rank:
+            p, d, q = order
+            try:  # perform moving-window arma
+                print('Using ARIMA({}, {}, {}) ...'.format(p, d, q))
+                errs, forecast = arima.moving_window(df, w_size=w_size, ph=ph,
+                                                     p=p, d=d, q=q,
+                                                     start_params=None,
+                                                     verbose=False)
+                print('ARIMA({}, {}, {}) success'.format(p, d, q))
+                break  # greedy beahior: take the first that works
+            except Exception as e:
+                print('ARIMA({}, {}, {}) failure'.format(p, d, q))
+                print('arima.moving_window raised:\n{}'.format(e))
 
-    # Save results reports
-    error_summary = utils.forecast_report(errs)
-    print(error_summary)
-    pkl.dump(error_summary, open(idx+'.pkl', 'wb'))  # dump it into a pkl
+        # Save results reports
+        error_summary = utils.forecast_report(errs)
+        print(error_summary)
+        pkl.dump(error_summary, open(idx+'.pkl', 'wb'))  # dump it into a pkl
 
-    # Plot signal and its fit
-    plotting.cgm(df, forecast['ts'], title='Patient '+idx, savefig=True)
+        # Plot signal and its fit
+        plotting.cgm(df, forecast['ts'], title='Patient '+idx, savefig=True)
 
-    # Plot residuals
-    plotting.residuals(df, forecast['ts'], skip_first=w_size, skip_last=ph,
-                       title='Patient '+idx, savefig=True)
+        # Plot residuals
+        plotting.residuals(df, forecast['ts'], skip_first=w_size, skip_last=ph,
+                           title='Patient '+idx, savefig=True)
 
 
 ######################################################################

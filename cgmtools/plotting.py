@@ -33,15 +33,13 @@ def cgm(df, gluco_fit=None, hypo=70, hyper=126,
     plt.hlines(hyper, df.index[0], df.index[-1], linestyles='dotted',
                label='hyperglicaemia')
     plt.ylim([10, 410])
-    plt.plot_date(df.index, df.as_matrix(),
-                  linestyle='solid', label='real CGM')
+    plt.plot_date(df.index, df.as_matrix(), '-', label='real CGM')
     if gluco_fit is not None:
-        plt.plot(df.index, gluco_fit,
-                 linestyle='dashed', label='predicted CGM')
+        plt.plot(df.index, gluco_fit, '-', label='predicted CGM')
     plt.title(title)
     plt.ylabel('mg/dL')
     plt.xticks(rotation='vertical')
-    plt.legend(bbox_to_anchor=(1.2, 1.0))
+    plt.legend(bbox_to_anchor=(1.1, 1.0))
     if savefig: plt.savefig(title+'_fit.png')
 
 
@@ -75,7 +73,7 @@ def residuals(df, forecast, skip_first=0, skip_last=0,
     savefig : bool, if True save title.png
     """
     # Evaluate the residuals (exclude learning and open loop ph samples)
-    residuals = df.as_matrix()[skip_first:-skip_last].ravel() - forecast['ts'][skip_first:-skip_last]
+    residuals = df.as_matrix()[skip_first:-skip_last].ravel() - forecast[skip_first:-skip_last]
 
     plt.figure(figsize=(12, 4), dpi=300)
     plt.plot(df.index[skip_first:-skip_last], residuals)
