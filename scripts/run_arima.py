@@ -22,6 +22,7 @@ from cgmtools import plotting
 from cgmtools.forecast import arima
 import datetime
 import pickle as pkl
+import warnings
 
 
 def main(args):
@@ -41,30 +42,47 @@ def main(args):
     idx = list(dfs.keys())[100]
     df = utils.gluco_extract(dfs[idx], return_df=True)
 
+
     # learn the best order
-    opt_order, final_index = arima.grid_search(df, burn_in=144, n_splits=8, p_bounds=(1, 4), d_bounds=(1, 2),
-                                               q_bounds=(1, 4), ic_score='AIC', return_final_index=True, verbose=True)
-    # # opt_order, final_index = arima.grid_search(df, burn_in=300, n_splits=15, p_bounds=(1, 4), d_bounds=(1, 2),
-    #                                            q_bounds=(1, 4), ic_score='AIC', return_final_index=True, verbose=True)
+    out = arima.grid_search(df, burn_in=144, n_splits=8, p_bounds=(1, 4),
+                            d_bounds=(1, 2), q_bounds=(1, 4), ic_score='AIC',
+                            return_order_rank=True, return_final_index=True,
+                            verbose=True)
+    # out = arima.grid_search(df, burn_in=300, n_splits=15, p_bounds=(1, 4),
+    #                         d_bounds=(1, 2), q_bounds=(1, 4), ic_score='AIC',
+    #                         return_order_rank=True, return_final_index=True,
+    #                         verbose=True)
+
+    opt_order, order_rank, final_index = out
 
     #opt_order = (2, 1, 1)
-    print(opt_order)
-    p, d, q = opt_order
+    print("Order rank:\n{}".format(order_rank))
 
     # Window-size and prediction horizon
     w_size = 30
     ph = 18
 
-    # perform moving-window arma
-    errs, forecast = arima.moving_window(df, w_size=w_size, ph=ph,
-                                         p=p, d=d, q=q,
-                                         start_params=None, verbose=True)
+    # Try the order from best to worst
+    for order in order_rank:
+        p, d, q = order
+        try:
+            # perform moving-window arma
+            errs, forecast = arima.moving_window(df, w_size=w_size, ph=ph,
+                                                 p=p, d=d, q=q,
+                                                 start_params=None,
+                                                 verbose=True)
+            print('ARIMA(%d, %d, %d) done' % p, d, q)
+            break  # greedy beahior: take the first that works
+        except Exception as e:
+            warnings.warn('arima.moving_window raised %s' % e)
+            warnings.warn('ARIMA(%d, %d, %d) failed' % p, d, q)
+
     print(forecast['ts'])
 
     # plot results
+    import numpy as np
     import matplotlib; matplotlib.use('agg')
     import matplotlib.pyplot as plt
-    import numpy as np
     import statsmodels.api as sm
 
     plotting.cgm(df.index, df.as_matrix(), title='Patient ')
