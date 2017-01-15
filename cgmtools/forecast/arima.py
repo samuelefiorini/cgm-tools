@@ -38,7 +38,7 @@ def moving_window(df, w_size=30, ph=18, p=2, d=1, q=1,
 
     Returns
     -------------------
-    errs : dictionary, errors at 30/60/90 mins ('err_18', 'err_12', 'err_6':)
+    errs : dictionary, errors at 30/60/90 mins ('err_18', 'err_12', 'err_6')
     forecast : dictionary, time-series prediction ['ts'], with std_dev
                ['sigma'] and confidence interval ['conf_int'].
                The output has the same length of the input, but the first
@@ -108,8 +108,6 @@ def moving_window(df, w_size=30, ph=18, p=2, d=1, q=1,
     forecast['ts'] = np.array(forecast['ts'])
     forecast['sigma'] = np.array(forecast['sigma'])
 
-    print(w_start)
-    print(w_end)
     return errs, forecast
 
 
@@ -296,12 +294,15 @@ def _rank_orders(final_index, min_p, min_d, min_q):
     """
     order_rank = []
 
-    # Iterate on the elements of the 3D array
-    for index in range(final_index.size):
-        _min = np.nanmin(final_index)  # NaN insensitive minimum value
-        _min_idx = np.argwhere(final_index == _min)[0]
-        i, j, k = _min_idx
-        final_index[i, j, k] = np.nan  # set the min to NaN
-        order_rank.append((i + min_p, j + min_d, k + min_q))
+    # Iterate through the 3 dimensions of the composite index and save a list
+    # made as [first value, (i,j,k), second value, (i',j',k'), ...]
+    for i in range(final_index.shape[0]):
+        for j in range(final_index.shape[1]):
+            for k in range(final_index.shape[2]):
+                order_rank.append([final_index[i, j, k],
+                                  (i + min_p, j + min_d, k + min_q)])
+
+    order_rank.sort()  # sort according to the first element of the list
+    order_rank = [idx for v, idx in order_rank]  # save only the indexes
 
     return order_rank
