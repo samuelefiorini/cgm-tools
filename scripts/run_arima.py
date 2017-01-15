@@ -22,7 +22,7 @@ from cgmtools import plotting
 from cgmtools.forecast import arima
 import datetime
 import pickle as pkl
-import warnings
+import warnings; warnings.filterwarnings('ignore')
 
 
 def main(args):
@@ -38,75 +38,55 @@ def main(args):
     dfs = utils.filter_patients(dfs_full, _threshold)
 
     # ----------------- TEST ----------------------------- #
-    # select patient
-    idx = list(dfs.keys())[100]
+    # Experiment parameters
+    # burn_in = 300  # burn-in samples used to learn the best order via cv
+    # n_splits = 15
+    burn_in = 144  # burn-in samples used to learn the best order via cv
+    n_splits = 8
+    w_size = 30  # Window-size
+    ph = 18  # prediction horizon
+
+    #for idx in dfs.keys():
+    idx = 'Horiguchi, Yoko.csv'
     df = utils.gluco_extract(dfs[idx], return_df=True)
 
-
-    # learn the best order
-    out = arima.grid_search(df, burn_in=144, n_splits=8, p_bounds=(1, 4),
-                            d_bounds=(1, 2), q_bounds=(1, 4), ic_score='AIC',
-                            return_order_rank=True, return_final_index=True,
-                            verbose=True)
-    # out = arima.grid_search(df, burn_in=300, n_splits=15, p_bounds=(1, 4),
-    #                         d_bounds=(1, 2), q_bounds=(1, 4), ic_score='AIC',
-    #                         return_order_rank=True, return_final_index=True,
-    #                         verbose=True)
-
+    # Learn the best order via cv
+    out = arima.grid_search(df, burn_in=burn_in, n_splits=n_splits,
+                            p_bounds=(1, 4), d_bounds=(1, 2), q_bounds=(1, 4),
+                            ic_score='AIC', return_order_rank=True,
+                            return_final_index=True, verbose=True)
     opt_order, order_rank, final_index = out
 
-    #opt_order = (2, 1, 1)
     print("Order rank:\n{}".format(order_rank))
 
-    # Window-size and prediction horizon
-    w_size = 30
-    ph = 18
+    df = df.iloc[burn_in:]  # don't mix-up training/test
 
     # Try the order from best to worst
     for order in order_rank:
         p, d, q = order
-        try:
-            # perform moving-window arma
+        try:  # perform moving-window arma
+            print('Using ARIMA({}, {}, {}) ...'.format(p, d, q))
             errs, forecast = arima.moving_window(df, w_size=w_size, ph=ph,
                                                  p=p, d=d, q=q,
                                                  start_params=None,
                                                  verbose=True)
-            print('ARIMA(%d, %d, %d) done' % p, d, q)
+            print('ARIMA({}, {}, {}) success'.format(p, d, q))
             break  # greedy beahior: take the first that works
         except Exception as e:
-            warnings.warn('arima.moving_window raised %s' % e)
-            warnings.warn('ARIMA(%d, %d, %d) failed' % p, d, q)
+            print('ARIMA({}, {}, {}) failure'.format(p, d, q))
+            print('arima.moving_window raised:\n{}'.format(e))
 
-    print(forecast['ts'])
+    # Save results reports
+    error_summary = utils.forecast_report(errs)
+    print(error_summary)
+    pkl.dump(error_summary, open(idx+'.pkl', 'wb'))  # dump it into a pkl
 
-    # plot results
-    import numpy as np
-    import matplotlib; matplotlib.use('agg')
-    import matplotlib.pyplot as plt
-    import statsmodels.api as sm
+    # Plot signal and its fit
+    plotting.cgm(df, forecast['ts'], title='Patient '+idx, savefig=True)
 
-    plotting.cgm(df.index, df.as_matrix(), title='Patient ')
-    plt.plot(df.index, forecast['ts'], linestyle='dashed', label='forecast')
-    plt.legend(bbox_to_anchor=(1.2, 1.0))
-    MAE_6 = np.mean(errs['err_6'])
-    MAE_12 = np.mean(errs['err_12'])
-    MAE_18 = np.mean(errs['err_18'])
-    RMSE_6 = np.linalg.norm(errs['err_6']) / np.sqrt(len(errs['err_6']))
-    RMSE_12 = np.linalg.norm(errs['err_12']) / np.sqrt(len(errs['err_12']))
-    RMSE_18 = np.linalg.norm(errs['err_18']) / np.sqrt(len(errs['err_18']))
-    print("MAE (30') = {:2.3f}\t|\tMAE (60') = {:2.3f}\t|\tMAE (90') = {:2.3f}".format(MAE_6, MAE_12, MAE_18))
-    print("RMSE (30') = {:2.3f}\t|\tRMSE (60') = {:2.3f}\t|\tRMSE (90') = {:2.3f}".format(RMSE_6, RMSE_12, RMSE_18))
-    plt.savefig('fits.png')
-
-
-    # In[14]:
-
-    residuals = df.as_matrix()[w_size:-ph].ravel() - forecast['ts'][w_size:-ph]
-    fig = plt.figure(figsize=(12, 4))
-    plt.plot(df.index[w_size:-ph], residuals)
-    plt.title('Durbin-Watson: {:.3f}'.format(sm.stats.durbin_watson(residuals)))
-    plt.savefig('res.png')
-
+    # Plot residuals
+    plotting.residuals(df, forecast['ts'], skip_first=w_size, skip_last=ph,
+                       title='Patient '+idx, savefig=True)
 
 
 ######################################################################
