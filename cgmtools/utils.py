@@ -6,6 +6,7 @@
 ######################################################################
 
 import datetime
+import numpy as np
 import pandas as pd
 
 
@@ -85,3 +86,40 @@ def gluco_extract(df, return_df=False):
                             columns=[column])
     else:
         return time, gluco
+
+
+def root_mean_squared(x):
+    """Evaluate root mean squared error of a given list of errors.
+
+    Parameters
+    -------------------
+    x : array of floats, the array of absolute errors
+
+    Returns
+    -------------------
+    rmse : float, the root mean squared error
+    """
+    return np.linalg.norm(x) / np.sqrt(len(x))
+
+
+def forecast_report(errors):
+    """Build a report showing mean absolute and root mean squared errors.
+
+    Parameters
+    -------------------
+    errors : dictionary, errors at 30/60/90 mins ('err_18', 'err_12', 'err_6')
+             (see forecast.arima.moving_window())
+
+    Returns
+    -------------------
+    report : pandas DataFrame, absolute mean and root mean squared errors at
+             30/60/90 min report
+    """
+    report = pd.DataFrame(index=['MAE', 'RMSE'], columns=[30, 60, 90])
+    report.loc['MAE'] = [np.mean(errors['err_6']),
+                         np.mean(errors['err_12']),
+                         np.mean(errors['err_18'])]
+    report.loc['RMSE'] = [root_mean_squared(errors['err_6']),
+                          root_mean_squared(errors['err_12']),
+                          root_mean_squared(errors['err_18'])]
+    return report
