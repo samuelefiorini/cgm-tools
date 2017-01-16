@@ -82,7 +82,6 @@ def main(args):
                 print('arima.moving_window raised the following exception')
                 print(e)
 
-
         # Save results reports
         error_summary = utils.forecast_report(errs)
         print(error_summary)

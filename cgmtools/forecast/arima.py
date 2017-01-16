@@ -72,9 +72,10 @@ def moving_window(df, w_size=30, ph=18, p=2, d=1, q=1,
 
             # Update the starting parameters for the next iter (warm restart)
             start_params = model.params.copy()
-        except np.linalg.linalg.LinAlgError as e:
-            print("ARIMA(%d, %d, %d) FAILED: %s" % p, d, q, e)
-            raise  # raise again the same exception
+        # except np.linalg.linalg.LinAlgError as e:
+        except Exception as e:
+            print("ARIMA(%d, %d, %d) FAILED" % p, d, q)
+            raise Exception(e)  # raise again the same exception
 
         if (w_end + ph) < n_samples:
             # Save the 1-step ahead prediction (for plotting reasons)
