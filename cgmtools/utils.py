@@ -88,23 +88,6 @@ def gluco_extract(df, return_df=False):
         return time, gluco
 
 
-def root_mean_squared(x):
-    """Evaluate root mean squared error of a given list of errors.
-
-    This function is NaNs insensitive.
-
-    Parameters
-    -------------------
-    x : array of floats, the array of absolute errors
-
-    Returns
-    -------------------
-    rmse : float, the root mean squared error
-    """
-    idx = np.where(list(map(lambda x: not x, np.isnan(x))))[0]  # filter NaNs
-    return np.linalg.norm(x[idx]) / np.sqrt(np.count_nonzero(idx))
-
-
 def forecast_report(errors):
     """Build a report showing mean absolute and root mean squared errors.
 
@@ -122,7 +105,7 @@ def forecast_report(errors):
     report.loc['MAE'] = [np.nanmean(errors['err_6']),
                          np.nanmean(errors['err_12']),
                          np.nanmean(errors['err_18'])]
-    report.loc['RMSE'] = [root_mean_squared(errors['err_6']),
-                          root_mean_squared(errors['err_12']),
-                          root_mean_squared(errors['err_18'])]
+    report.loc['RMSE'] = [np.sqrt(np.nanmean(errors['err_6'])),
+                          np.sqrt(np.nanmean(errors['err_12'])),
+                          np.sqrt(np.nanmean(errors['err_18']))]
     return report
