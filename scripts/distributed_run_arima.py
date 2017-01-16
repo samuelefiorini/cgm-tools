@@ -68,6 +68,7 @@ def master(dfs):
                                     'forecast': forecast}
         count += 1
         # --- Save the results --- #
+        print('master saving output of {}'.format(status.source))
         error_summary = patients_out[patient_id]['summary']
         forecast = patients_out[patient_id]['forecast']
         # Dump patient summary into a pkl
@@ -87,7 +88,7 @@ def master(dfs):
 
     # there's no more work to do, so receive all the results from the slaves
     for rankk in range(1, min(n_procs, n_jobs)):
-        # print(NAME + ": master - waiting from", rankk)
+        print(NAME + ": master - waiting from", rankk)
         status = MPI.Status()
         patient_id, error_summary, forecast = COMM.recv(
             source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
@@ -97,10 +98,10 @@ def master(dfs):
 
     # tell all the slaves to exit by sending an empty message with the EXIT_TAG
     for rankk in range(1, n_procs):
-        # print(NAME + ": master - killing", rankk)
+        print(NAME + ": master - killing", rankk)
         COMM.send(0, dest=rankk, tag=EXIT)
 
-    # print(NAME + ": terminating master")
+    print(NAME + ": terminating master")
     return patients_out
 
 
@@ -154,6 +155,7 @@ def slave(dfs):
                 out = _worker(df)
             except:
                 out = (None, None, None)  # fit failed for current patient
+                print(NAME + ": slave fit failed", RANK, idx)
             COMM.send((idx, out[0], out[1]), dest=0, tag=0)
 
     except StandardError as exc:

@@ -1,3 +1,6 @@
+# Bash files
+*.sh
+
 # Mac hidden files
 *.DS_Store
 
