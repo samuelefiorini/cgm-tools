@@ -66,6 +66,7 @@ def main(args):
 
         df = df.iloc[burn_in:]  # don't mix-up training/test
 
+        errs = None
         # Try the order from best to worst
         for order in order_rank:
             p, d, q = order
@@ -82,17 +83,21 @@ def main(args):
                 print('arima.moving_window raised the following exception')
                 print(e)
 
-        # Save results reports
-        error_summary = utils.forecast_report(errs)
-        print(error_summary)
-        pkl.dump(error_summary, open(idx+'.pkl', 'wb'))  # dump it into a pkl
+        if errs is not None:
+            # Save results reports
+            error_summary = utils.forecast_report(errs)
+            print(error_summary)
+            # dump it into a pkl
+            pkl.dump(error_summary, open(idx+'.pkl', 'wb'))
 
-        # Plot signal and its fit
-        plotting.cgm(df, forecast['ts'], title='Patient '+idx, savefig=True)
+            # Plot signal and its fit
+            plotting.cgm(df, forecast['ts'], title='Patient '+idx,
+                         savefig=True)
 
-        # Plot residuals
-        plotting.residuals(df, forecast['ts'], skip_first=w_size, skip_last=ph,
-                           title='Patient '+idx, savefig=True)
+            # Plot residuals
+            plotting.residuals(df, forecast['ts'], skip_first=w_size,
+                               skip_last=ph, title='Patient '+idx,
+                               savefig=True)
 
 
 ######################################################################
