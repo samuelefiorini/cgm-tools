@@ -12,15 +12,26 @@ from cgmtools.forecast import arima
 from collections import deque
 import datetime
 from mpi4py import MPI
+<<<<<<< Updated upstream
 # import os
 import pickle as pkl
 import warnings; warnings.filterwarnings('ignore')
 # import shutil
+=======
+import os
+import pickle as pkl
+import warnings; warnings.filterwarnings('ignore')
+import shutil
+>>>>>>> Stashed changes
 
 COMM = MPI.COMM_WORLD
 RANK = COMM.Get_rank()
 NAME = MPI.Get_processor_name()
 
+<<<<<<< Updated upstream
+=======
+IS_MPI_JOB = COMM.Get_size() > 1
+>>>>>>> Stashed changes
 
 # MAX_RESUBMISSIONS = 2
 # constants to use as tags in communications
@@ -54,12 +65,20 @@ def master(dfs):
 
     # seed the slaves by sending work to each processor
     for rankk in range(1, min(n_procs, n_jobs)):
+<<<<<<< Updated upstream
         patient_tuple = patients_queue.popleft()  # TODO it's hust a key
+=======
+        patient_tuple = patients_queue.popleft()
+>>>>>>> Stashed changes
         COMM.send(patient_tuple, dest=rankk, tag=DO_WORK)
         print(NAME + ": send to rank", rankk)
 
     # loop until there's no more work to do. If queue is empty skips the loop.
     while patients_queue:
+<<<<<<< Updated upstream
+=======
+        patient_tuple = patients_queue.popleft()
+>>>>>>> Stashed changes
         # receive result from slave
         status = MPI.Status()
         patient_id, error_summary, forecast = COMM.recv(
@@ -67,6 +86,7 @@ def master(dfs):
         patients_out[patient_id] = {'summary': error_summary,
                                     'forecast': forecast}
         count += 1
+<<<<<<< Updated upstream
         # --- Save the results --- #
         print('master saving output of {}'.format(status.source))
         error_summary = patients_out[patient_id]['summary']
@@ -83,12 +103,18 @@ def master(dfs):
                            savefig=True)
         # -- submit again -- #
         patient_tuple = patients_queue.popleft()
+=======
+>>>>>>> Stashed changes
         # send to the same slave new work
         COMM.send(patient_tuple, dest=status.source, tag=DO_WORK)
 
     # there's no more work to do, so receive all the results from the slaves
     for rankk in range(1, min(n_procs, n_jobs)):
+<<<<<<< Updated upstream
         print(NAME + ": master - waiting from", rankk)
+=======
+        # print(NAME + ": master - waiting from", rankk)
+>>>>>>> Stashed changes
         status = MPI.Status()
         patient_id, error_summary, forecast = COMM.recv(
             source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
@@ -98,10 +124,17 @@ def master(dfs):
 
     # tell all the slaves to exit by sending an empty message with the EXIT_TAG
     for rankk in range(1, n_procs):
+<<<<<<< Updated upstream
         print(NAME + ": master - killing", rankk)
         COMM.send(0, dest=rankk, tag=EXIT)
 
     print(NAME + ": terminating master")
+=======
+        # print(NAME + ": master - killing", rankk)
+        COMM.send(0, dest=rankk, tag=EXIT)
+
+    # print(NAME + ": terminating master")
+>>>>>>> Stashed changes
     return patients_out
 
 
@@ -136,7 +169,11 @@ def _worker(df):
     # Save results reports
     error_summary = utils.forecast_report(errs)
 
+<<<<<<< Updated upstream
     return error_summary, forecast
+=======
+    return [error_summary, forecast]
+>>>>>>> Stashed changes
 
 
 def slave(dfs):
@@ -151,11 +188,15 @@ def slave(dfs):
             # do the work
             print(NAME + ": slave received", RANK, idx)
             df = utils.gluco_extract(dfs[idx], return_df=True)
+<<<<<<< Updated upstream
             try:
                 out = _worker(df)
             except:
                 out = (None, None, None)  # fit failed for current patient
                 print(NAME + ": slave fit failed", RANK, idx)
+=======
+            out = _worker(df)
+>>>>>>> Stashed changes
             COMM.send((idx, out[0], out[1]), dest=0, tag=0)
 
     except StandardError as exc:
@@ -164,6 +205,10 @@ def slave(dfs):
 
 def main(args):
     """Run ARIMA experiments on multiple machines."""
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
     # TODO: everybody loads the data here
     # Load full data set from pickle file (see data_wrangler.py)
     dfs_full = pkl.load(open(args.data_folder, 'rb'))
@@ -179,6 +224,7 @@ def main(args):
     else:
         slave(dfs)
 
+<<<<<<< Updated upstream
     # if IS_MPI_JOB:
     # Wait for all jobs to end
     COMM.barrier()
@@ -204,6 +250,33 @@ def main(args):
         #     plotting.residuals(dfs[idx], forecast['ts'], skip_first=w_size,
         #                        skip_last=ph, title='Patient '+idx,
         #                        savefig=True)
+=======
+    if IS_MPI_JOB:
+        # Wait for all jobs to end
+        COMM.barrier()
+
+    if RANK == 0:
+        # collect jobs
+
+        # Save results reports
+        for idx in patients_out.keys():
+
+            error_summary = patients_out[idx]['summary']
+            forecast = patients_out[idx]['forecast']
+
+            # Dump patient summary into a pkl
+            pkl.dump(error_summary, open(idx+'.pkl', 'wb'))
+
+            # Plot signal and its fit
+            # dfs and patient_out share the same indexes
+            plotting.cgm(dfs[idx], forecast['ts'], title='Patient '+idx,
+                         savefig=True)
+
+            # Plot residuals
+            plotting.residuals(dfs[idx], forecast['ts'], skip_first=w_size,
+                               skip_last=ph, title='Patient '+idx,
+                               savefig=True)
+>>>>>>> Stashed changes
 
 ######################################################################
 
