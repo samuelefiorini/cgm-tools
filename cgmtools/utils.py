@@ -101,7 +101,7 @@ def root_mean_squared(x):
     -------------------
     rmse : float, the root mean squared error
     """
-    idx = np.where(map(lambda x: not x, np.isnan(x)))[0]  # filter NaNs
+    idx = np.where(list(map(lambda x: not x, np.isnan(x))))[0]  # filter NaNs
     return np.linalg.norm(x[idx]) / np.sqrt(np.count_nonzero(idx))
 
 
