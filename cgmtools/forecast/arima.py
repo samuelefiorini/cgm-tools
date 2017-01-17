@@ -235,7 +235,7 @@ def grid_search(df, burn_in=300, n_splits=15, p_bounds=(2, 8),
                 _current_ic_score = model.aic if ic_score is 'AIC' else model.bic
             except Exception as e:
                 if verbose: warnings.warn('statsmodels.tsa.arima_model.ARIMA '
-                                          'raised:\n%s' % e)
+                                          'raised:\n %s' % e)
                 _current_vld_err = np.nan
                 _current_ic_score = np.nan
 
