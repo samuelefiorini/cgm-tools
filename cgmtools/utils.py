@@ -105,7 +105,7 @@ def forecast_report(errors):
     report.loc['MAE'] = [np.nanmean(errors['err_6']),
                          np.nanmean(errors['err_12']),
                          np.nanmean(errors['err_18'])]
-    report.loc['RMSE'] = [np.sqrt(np.nanmean(errors['err_6'])),
-                          np.sqrt(np.nanmean(errors['err_12'])),
-                          np.sqrt(np.nanmean(errors['err_18']))]
+    report.loc['RMSE'] = [np.sqrt(np.nanmean(errors['err_6'] ** 2)),
+                          np.sqrt(np.nanmean(errors['err_12'] ** 2)),
+                          np.sqrt(np.nanmean(errors['err_18'] ** 2))]
     return report
