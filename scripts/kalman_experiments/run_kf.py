@@ -4,13 +4,12 @@ from cgmtools import plotting
 from cgmtools.forecast import kf
 import datetime
 import numpy as np
-import os
 import pickle as pkl
 
 ###############################################################################
 
 # Load full data set from pickle file (see data_wrangler.py)
-dfs_full = pkl.load(open('data/dfs_py3.pkl', 'rb'))
+dfs_full = pkl.load(open('../../data/dfs_py3.pkl', 'rb'))
 
 # Keep only patients with more than `THRESHOLD` days of CGM acquisition
 _threshold = datetime.timedelta(days=3.5)  # default
@@ -57,26 +56,26 @@ for idx in patients:
     # Save results reports
     error_summary = utils.forecast_report(errs)
     print(error_summary)
-    import matplotlib.pyplot as plt
-    plotting.cgm(df, forecast['ts'], title='Patient '+idx,
-                 savefig=False)
-    plotting.residuals(df, forecast['ts'], skip_first=burn_in,
-                       skip_last=ph, title='Patient '+idx,
-                       savefig=False)
-    plt.show()
-    break
+    # import matplotlib.pyplot as plt
+    # plotting.cgm(df, forecast['ts'], title='Patient '+idx,
+    #              savefig=False)
+    # plotting.residuals(df, forecast['ts'], skip_first=burn_in,
+    #                    skip_last=ph, title='Patient '+idx,
+    #                    savefig=False)
+    # plt.show()
+    # break
 
     # # dump it into a pkl
-    # pkl.dump(error_summary, open(os.path.join('KFresults', idx+'.pkl'), 'wb'))
-    #
-    # try:
-    #     # Plot signal and its fit
-    #     plotting.cgm(df, forecast['ts'], title='Patient '+idx,
-    #                  savefig=True)
-    #
-    #     # Plot residuals
-    #     plotting.residuals(df, forecast['ts'], skip_first=burn_in,
-    #                        skip_last=ph, title='Patient '+idx,
-    #                        savefig=True)
-    # except:
-    #     print("Plotting failed for patient {}".format(idx))
+    pkl.dump(error_summary, open(idx+'.pkl', 'wb'))
+
+    try:
+        # Plot signal and its fit
+        plotting.cgm(df, forecast['ts'], title='Patient '+idx,
+                     savefig=True)
+
+        # Plot residuals
+        plotting.residuals(df, forecast['ts'], skip_first=burn_in,
+                           skip_last=ph, title='Patient '+idx,
+                           savefig=True)
+    except:
+        print("Plotting failed for patient {}".format(idx))
