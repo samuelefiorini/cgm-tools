@@ -45,7 +45,7 @@ def forecast(kf=None, n_steps=1, X_old=None, P_old=None, H=None,
     Parameters
     -------------------
     kf : pykalman.standard.KalmanFilter, the (fitted) KF to use
-         to perform forecast
+         to forecast
     n_steps : number, the prediction horizon (default = 1)
     H : array of float, the acquisition model
     y : array of float, the observation until the last acquired sample
@@ -133,8 +133,10 @@ def grid_worker(l2, s2, F, H, tscv, time_series, count, jobs_dump):
     jobs_dump[count] = (l2, s2, vld_error)
 
 
-def grid_search(df, lambda2_range, sigma2_range, burn_in=300, n_splits=15,
-                return_mean_vld_error=False, verbose=False):
+def grid_search(df, lambda2_range, sigma2_range, F=None, H=None, burn_in=300,
+                n_splits=15, return_mean_vld_error=False,
+                return_initial_state_mean=False,
+                return_initial_state_covariance=False, verbose=False):
     """Find the best Kalman filter parameters via grid search cross-validation.
 
     This function perform a grid search of the optimal (lambda2, r)
@@ -154,20 +156,39 @@ def grid_search(df, lambda2_range, sigma2_range, burn_in=300, n_splits=15,
     Parameters
     -------------------
     df : DataFrame, the output returned by gluco_extract(return_df=True)
+    lambda2_range : array of float, grid of Bayesian Kalman filter
+                    regularization parameter Q[0,0]
+    sigma2_range : array of float, grid of observation (co)variances
+    F : array of float, the trainsition matrix (default is double-integrated
+        model)
+    H : array of float, the observation model (default is [1, 0])
     burn_in : number, the number of samples at the beginning of the
               time-series that should be splitted to perform grid search
               (default = 300)
     n_splits : number, the number of splits of the time-series
                cross-validation schema (default=15). Your prediction
                horizon will be `floor(n_samples / (n_splits + 1))`
-    [....]
     return_mean_vld_error : bool, return the average validation error
                            (default=False)
+    return_initial_state_mean : bool, return the initial state mean evaluated
+                                via EM on the burn-in samples
+    return_initial_state_covariance : bool, return the initial state covariance
+                                     evaluated via EM on the burn-in samples
     verbose : bool, print debug messages (default=False)
 
     Returns
     -------------------
-    [...]
+    lambda2_opt : number
+    sigma2_opt : number
+    mean_vld_error : array of float, the array of mean cross-validation error,
+                     size (len(lambda2_range), len(sigma2_range)) (if
+                     return_mean_vld_error = True)
+    initial_state_mean : array of float, initial state mean evaluated
+                         via EM on the burn-in samples (if
+                         return_initial_state_mean = True)
+    initial_state_covariance : array of float, initial state covariance
+                         evaluated via EM on the burn-in samples (if
+                         return_initial_state_covariance = True)
 
     References
     -------------------
@@ -184,12 +205,8 @@ def grid_search(df, lambda2_range, sigma2_range, burn_in=300, n_splits=15,
                         '%d' % (burn_in, n_samples))
 
     import multiprocessing as mp
-    # State-space model:
-    # transition matrix (double integration model)
-    F = np.array([[2, -1], [1, 0]])
-    # measures matrix
-    H = np.array([1, 0])
-
+    if F is None: F = np.array([[2, -1], [1, 0]])  # double integration model)
+    if H is None: H = np.array([1, 0])  # observation model
     # Isolate the burn in samples
     time_series = df.iloc[:burn_in]
 
@@ -242,20 +259,113 @@ def grid_search(df, lambda2_range, sigma2_range, burn_in=300, n_splits=15,
         std_vld_error[i, j] = np.nanstd(vld_error)
 
     # Get the optimal orders from the score that we want to optimize
-    # print(mean_vld_error)
-    # print(np.nanmin(mean_vld_error))
     i_opt, j_opt, = np.argwhere(mean_vld_error == np.nanmin(mean_vld_error))[0]
-    # print(i_opt, j_opt)
-    # print(lambda2_range[i_opt], sigma2_range[j_opt])
-    # print(lambda2_range)
-    # print(sigma2_range)
-    # print('-----------------------------')
-    # import sys; sys.exit(0)
 
     # Multiple returns
-    ret = [lambda2_range[i_opt], sigma2_range[j_opt]]
+    lambda2_opt, sigma2_opt = lambda2_range[i_opt], sigma2_range[j_opt]
+    ret = [lambda2_opt, sigma2_opt]
+    Q = np.array([[lambda2_opt, 0], [0, 0]])  # transition_covariance
+    R = sigma2_opt  # observation (co)variance
+
+    if return_initial_state_mean or return_initial_state_covariance:
+        kf_refit = cgmkalmanfilter(F=F, Q=Q, R=R, X0=None, P0=None)
+        X0, P0 = kf_refit.em(time_series,
+                             em_vars=('initial_state_mean',
+                                      'initial_state_covariance')).filter(time_series)
     if return_mean_vld_error:
         ret.append(mean_vld_error)
+    if return_initial_state_mean:
+        ret.append(X0[-1])
+    if return_initial_state_covariance:
+        ret.append(P0[-1])
     return ret
 
-# def online_forecast()
+
+def online_forecast(df, kf, H, ph=18, lambda2=1e-6, sigma2=1,
+                    verbose=False):
+    """Recursively fit/predict a Kalman filter on input CGM time-series.
+
+    This function recursively fits a Kalman filter on input CGM time series and
+    evaluates 30/60/90 mins (absolute) error.
+
+    Parameters
+    -------------------
+    df : DataFrame, the output returned by gluco_extract(..., return_df=True)
+    kf : pykalman.standard.KalmanFilter, the (initialized) KF to use
+         to forecast
+    H : array of float, observation model
+    w_size : number, the window size (default=30, i.e. 150 mins (2.5 hours))
+    ph : number, the prediction horizon. It must be ph > 0
+         (default=18, i.e. 90 mins (1.5 hours))
+    lambda2 : number, Bayesian Kalman filter regularization parameter Q[0,0]
+    sigma2 : number, observation variance
+    verbose : bool, print debug messages each 100 iterations (default=False)
+
+    Returns
+    -------------------
+    errs : dictionary, errors at 30/60/90 mins ('err_18', 'err_12', 'err_6')
+    forecast : dictionary, time-series prediction ['ts'], with std_dev
+               ['sigma'] and confidence interval ['conf_int'].
+               The output has the same length of the input, but the first
+               `w_size` elements are set to 0.
+    """
+    # Argument check
+    if ph <= 0:
+        raise Exception('ph must be at least 1')
+
+    n_samples = df.shape[0]
+
+    # Absolute prediction error at 30/60/90 minutes
+    errs_dict = {'err_18': [], 'err_12': [], 'err_6': []}
+    # 1 step-ahead predictions
+    forecast_dict = {'ts': [], 'sigma': [], 'conf_int': []}
+
+    time_series = df.values.ravel()
+
+    # Init state meand and covariance
+    X_old = kf.initial_state_mean
+    P_old = kf.initial_state_covariance
+
+    # Acquire one sample at the time
+    for t in range(1, n_samples - ph):
+        y_pred, X_new, P_new = forecast(kf=kf, n_steps=ph,
+                                        X_old=X_old, P_old=P_old,
+                                        H=H, y=time_series[:t])
+        forecast_dict['ts'].append(y_pred[0])
+
+        # Evaluate the errors
+        y_future_real = time_series[t:t + ph]
+        abs_pred_err = np.abs(y_pred - y_future_real)
+
+        # Save errors
+        errs_dict['err_18'].append(abs_pred_err[17])
+        errs_dict['err_12'].append(abs_pred_err[11])
+        errs_dict['err_6'].append(abs_pred_err[5])
+
+        if (t % 200) == 0 and verbose:
+            print("[:{}]\nErrors: 30' = {:2.3f}\t|\t60' = "
+                  "{:2.3f}\t|\t90' = {:2.3f}".format(t,
+                                                     errs_dict['err_6'][-1],
+                                                     errs_dict['err_12'][-1],
+                                                     errs_dict['err_18'][-1]))
+    # Return numpy.array
+    forecast_dict['ts'] = np.array(forecast_dict['ts'])
+    return errs_dict, forecast_dict
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########################################################

@@ -28,7 +28,6 @@ import warnings; warnings.filterwarnings('ignore')
 
 def main(args):
     """Run ARIMA experiments."""
-
     ### TODO: deleteme ###
     # List all completed patients
     completed = list(filter(lambda x: x.endswith('.pkl'),
