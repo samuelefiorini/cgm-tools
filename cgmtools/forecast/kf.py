@@ -110,7 +110,7 @@ def grid_worker(l2, s2, F, H, tscv, time_series, count, jobs_dump):
     R = s2  # observation (co)variance
 
     # Init the vld_error vector for the current order
-    vld_error = np.zeros(tscv.n_splits)
+    vld_error = np.zeros(tscv.n_splits - 1)
 
     # Iterate through the CV splits
     for cv_count, (tr_index, vld_index) in enumerate(tscv.split(time_series)):
@@ -129,7 +129,7 @@ def grid_worker(l2, s2, F, H, tscv, time_series, count, jobs_dump):
                                                 H=H, y=y_tr,
                                                 return_first_kf=True)
             # Save vld error
-            vld_error[cv_count] = mean_squared_error(y_pred, y_vld)
+            vld_error[cv_count - 1] = mean_squared_error(y_pred, y_vld)
     jobs_dump[count] = (l2, s2, vld_error)
 
 
@@ -242,8 +242,15 @@ def grid_search(df, lambda2_range, sigma2_range, burn_in=300, n_splits=15,
         std_vld_error[i, j] = np.nanstd(vld_error)
 
     # Get the optimal orders from the score that we want to optimize
-    final_index = mean_vld_error
-    i_opt, j_opt, = np.argwhere(final_index == np.nanmin(mean_vld_error))[0]
+    # print(mean_vld_error)
+    # print(np.nanmin(mean_vld_error))
+    i_opt, j_opt, = np.argwhere(mean_vld_error == np.nanmin(mean_vld_error))[0]
+    # print(i_opt, j_opt)
+    # print(lambda2_range[i_opt], sigma2_range[j_opt])
+    # print(lambda2_range)
+    # print(sigma2_range)
+    # print('-----------------------------')
+    # import sys; sys.exit(0)
 
     # Multiple returns
     ret = [lambda2_range[i_opt], sigma2_range[j_opt]]
