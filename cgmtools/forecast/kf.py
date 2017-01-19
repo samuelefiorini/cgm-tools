@@ -11,7 +11,6 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import ParameterGrid
 from sklearn.model_selection import TimeSeriesSplit
 from pykalman import KalmanFilter
-import warnings
 
 
 __all__ = ['cgmkalmanfilter', 'forecast', 'grid_search']
