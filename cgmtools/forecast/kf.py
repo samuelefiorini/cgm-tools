@@ -293,7 +293,6 @@ def online_forecast(df, kf, H, ph=18, lambda2=1e-6, sigma2=1,
     kf : pykalman.standard.KalmanFilter, the (initialized) KF to use
          to forecast
     H : array of float, observation model
-    w_size : number, the window size (default=30, i.e. 150 mins (2.5 hours))
     ph : number, the prediction horizon. It must be ph > 0
          (default=18, i.e. 90 mins (1.5 hours))
     lambda2 : number, Bayesian Kalman filter regularization parameter Q[0,0]
