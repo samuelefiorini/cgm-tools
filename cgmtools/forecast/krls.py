@@ -1,17 +1,11 @@
-""""[cgm-tools] CGM forecast via LSTM network."""
+""""[cgm-tools] CGM forecast via Kernel Ridge Regression."""
 ######################################################################
 # Copyright (C) 2017 Samuele Fiorini, Chiara Martini, Annalisa Barla
 #
 # GPL-3.0 License
 ######################################################################
 
-from keras.layers import Dense
-from keras.layers import LSTM
-from keras.models import Sequential
 import numpy as np
-
-__all__ = ['forecast', 'online_forecast', 'create_XY_dataset',
-           'create_model']
 
 
 def online_forecast(test_data, test_labels, model, scaler, ph=18,
@@ -21,14 +15,16 @@ def online_forecast(test_data, test_labels, model, scaler, ph=18,
     This function recursively predicts input CGM time series and
     evaluates 30/60/90 mins (absolute) error.
 
+    This function is basically the same as forecast.lstm.online_forecast,
+    the only difference is the shape of the data.
+
     Parameters
     -------------------
     test_data : array of float, returned by create_XY_dataset in first position
                 of size (1, window_size, 1)
     test_labels : array of float, returned by create_XY_dataset in second
                   position fo size (1,)
-    model : keras.model, the (compiled) LSTM to use to forecast returned by
-            `create_model`
+    model : sklearn.kernel_ridge.KernelRidge, class instance
     scaler : sklearn.preprocessing, the (fitted) preprocessing object used on
              the input data
     ph : number, the prediction horizon. It must be ph > 0
@@ -49,12 +45,11 @@ def online_forecast(test_data, test_labels, model, scaler, ph=18,
 
     errs_dict = {'err_18': [], 'err_12': [], 'err_6': []}
     forecast_dict = {'ts': [], 'sigma': [], 'conf_int': []}
-    w_size = test_data.shape[1]
 
     for t in range(test_data.shape[0] - ph):
         if t % 200 == 0 and verbose:
             print("Forecasting t = {}/{}".format(t, test_data.shape[0]))
-        _X_ts_next = test_data[t].reshape(1, w_size, 1)
+        _X_ts_next = test_data[t]
 
         y_pred = forecast(model, n_steps=ph, test_point=_X_ts_next)
 
@@ -76,14 +71,15 @@ def online_forecast(test_data, test_labels, model, scaler, ph=18,
 
 
 def forecast(model=None, n_steps=1, test_point=None):
-    """Forecast n_steps-ahead using the input LSTM.
+    """Forecast n_steps-ahead using the input Kernel Ridge regressor.
 
     Parameters
     -------------------
-    model : keras.model, the (fitted) LSTM to use to forecast
+    model : sklearn.kernel_ridge.KernelRidge, the (fitted) Kernel Ridge
+            regressor to use to forecast
     n_steps : number, the prediction horizon (default = 1)
     test_data : array of float, the next test point of shape
-                (1, window-size, 1), windows-size is the same
+                (window-size,), windows-size is the same
                 used in create_XY_dataset
 
     Returns
@@ -98,65 +94,13 @@ def forecast(model=None, n_steps=1, test_point=None):
 
     # Start with the current test point
     _next_test_point = test_point
-    w_size = _next_test_point.shape[1]
+    w_size = _next_test_point.shape[0]
 
     # Iterate on the prediction horizon
     for step in range(n_steps):
         # Forecast one-step-ahead
         y_pred[step] = model.predict(_next_test_point)
         # Shift one-step-ahead the window
-        _next_test_point = np.reshape(np.append(_next_test_point[:, 1:, :],
-                                                y_pred[step]), (1, w_size, 1))
+        _next_test_point = np.reshape(np.append(_next_test_point[1:],
+                                                y_pred[step]), (w_size,))
     return y_pred
-
-
-def create_XY_dataset(data, window_size=1):
-    """Create suitable {X,Y} couples suitable for LSTM training/test.
-
-    This function has been adapted from:
-    [http://machinelearningmastery.com/time-series-prediction-lstm-recurrent-neural-networks-python-keras/]
-
-    Parameters
-    -------------------
-    data : input time-series data of size (n_samples, 1)
-    window_size : number, the window-size
-
-    Returns
-    -------------------
-    X : array of float, input data of size (n_samples, window_size, 1)
-    Y : array of float, output data of size (n_samples,)
-    """
-    X, Y = [], []
-    for i in range(len(data) - window_size):
-        tmp = data[i:(i + window_size), 0]
-        X.append(tmp)
-        Y.append(data[i + window_size, 0])
-
-    X, Y = np.array(X), np.array(Y)
-    X = np.reshape(X, (X.shape[0], X.shape[1], 1))
-    return X, Y
-
-
-def create_model(n_units=4, input_dim=1):
-    """Create a single hidden-layer LSTM network.
-
-    This function creates a single layer LSTM network using Keras.
-    This model has an LSTM layer followed by a one-dimensional Dense
-    layer. The loss function is 'mean_squared_error' and the optimizer is
-    'adam'.
-
-    Parameters
-    -------------------
-    n_units : number, the number of units of the LSTM layer (default = 4)
-    input_dim : number, the dimensionality of the input (default = 1)
-
-    Returns
-    -------------------
-    model : keras.model, the (compiled) LSTM to use to forecast
-    """
-    # create and compile the LSTM network
-    model = Sequential()
-    model.add(LSTM(n_units, input_dim=input_dim))
-    model.add(Dense(1))
-    model.compile(loss='mean_squared_error', optimizer='adam')
-    return model

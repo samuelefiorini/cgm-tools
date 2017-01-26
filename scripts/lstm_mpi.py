@@ -136,8 +136,8 @@ def worker(idx):
     print("Predicting time: {} seconds".format(time.time() - tic))
     error_summary = utils.forecast_report(errs)
     print(error_summary)
-    pkl.dump(error_summary, open(os.path.join(ROOT, 'results', idx+'.pkl', 'wb')))
-    model.save(os.path.join(ROOT, 'results', idx+'_model_.h5'))
+    pkl.dump(error_summary, open(os.path.join(ROOT, 'results', idx+'.pkl'), 'wb'))
+    #model.save(os.path.join(ROOT, 'results', idx+'_model_.h5'))
 
     # -- Plotting -- #
     try:
