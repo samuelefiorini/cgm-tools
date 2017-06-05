@@ -6,7 +6,7 @@
 ######################################################################
 """cgm-tools setup script."""
 
-from distutils.core import setup
+from setuptools import setup
 
 # Package Version
 from cgmtools import __version__ as version
