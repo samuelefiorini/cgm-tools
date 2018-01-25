@@ -20,20 +20,34 @@ import pickle as pkl
 import sys
 
 
-def Excel2DF(root, csvfiles, show_failed=False):
+def Excel2DF(root, tabularfiles, show_failed=False):
     """Load and transform each .csv data file."""
     failed = []
     out = {}
-    for csvfile in csvfiles:
-        filename = os.path.join(root, csvfile)
-        try:
-            df = pd.read_csv(filename,
-                             encoding='UTF-16LE', sep='\t',
-                             skiprows=11, index_col=0, header=0,
-                             lineterminator=os.linesep)
-            out[csvfile] = df
-        except:
-            failed.append(csvfile)
+    if tabularfiles[0].endswith('.csv'):
+        csvfiles = tabularfiles
+        for csvfile in csvfiles:
+            filename = os.path.join(root, csvfile)
+            try:
+                df = pd.read_csv(filename,
+                                 encoding='UTF-16LE', sep='\t',
+                                 skiprows=11, index_col=0, header=0,
+                                 lineterminator=os.linesep)
+                out[csvfile] = df
+            except:
+                failed.append(csvfile)
+    else:
+        xlsxfiles = tabularfiles
+        for xlsxfile in xlsxfiles:
+            filename = os.path.join(root, xlsxfile)
+            try:
+                df = pd.read_excel(filename,
+                                   encoding='UTF-16LE',
+                                   skiprows=11, index_col=0, header=0)
+                out[xlsxfile] = df
+            except Exception as e:
+                print(e)
+                failed.append(xlsxfile)
 
     if show_failed:
         print("Import failed for {} files:".format(len(failed)))
@@ -48,11 +62,13 @@ def main(args):
     # Check that the input folder contains .csv files
     files = os.listdir(args.data_folder)
     csvfiles = list(filter(lambda x: x.endswith('.csv'), files))
-    if len(csvfiles) == 0:
-        raise Exception("No .csv files in {}".format(args.data_folder))
+    xlsxfiles = list(filter(lambda x: x.endswith('.xlsx'), files))
+    if len(csvfiles) == 0 and len(xlsxfiles) == 0:
+        raise Exception("No .csv/.xlsx files in {}".format(args.data_folder))
         sys.exit(-1)
+    tabularfiles = csvfiles if len(csvfiles) > 0 else xlsxfiles
 
-    dfs = Excel2DF(root=args.data_folder, csvfiles=csvfiles, show_failed=True)
+    dfs = Excel2DF(root=args.data_folder, tabularfiles=tabularfiles, show_failed=True)
 
     # Dump content in a pickle file if required
     if args.output:
